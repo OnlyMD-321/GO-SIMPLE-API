@@ -6,20 +6,25 @@ import (
 	"log"
 	"net/http"
 	"time"
-
-	"Go-Simple-API/internal/models"
-	"Go-Simple-API/internal/storage"
+	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/models"
+	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/storage"
+	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/handlers"
 	"github.com/go-chi/chi"
 	"go.mongodb.org/mongo-driver/bson"
+
 )
+
+
 
 var mh *storage.MongoHandler
 
+
 func main() {
     mongoDbConnection := "mongodb://localhost:27017"
-    mh = storage.NewHandler(mongoDbConnection)
-    if mh == nil {
-        log.Fatal("Failed to initialize MongoHandler")
+    var err error
+    mh, err = storage.NewHandler(mongoDbConnection)  // Capture the error
+    if err != nil {
+        log.Fatalf("Failed to initialize MongoHandler: %v", err)  // Log the error if it's not nil
     }
     r := registerRoutes()
     
@@ -30,16 +35,26 @@ func main() {
 }
 
 
-
 func registerRoutes() http.Handler {
 	r := chi.NewRouter()
+
+	// Authentication routes
+	r.Route("/auth", func(r chi.Router) {
+		r.Post("/register", handlers.Register)  // POST /auth/register
+		r.Post("/login", handlers.Login)        // POST /auth/login
+		r.Post("/logout", handlers.Logout)      // POST /auth/logout (token invalidation not implemented)
+	})
+
+	// Contact routes (protected)
 	r.Route("/contacts", func(r chi.Router) {
-		r.Get("/", getAllContact)                 // GET /contacts
-		r.Get("/{phonenumber}", getContact)       // GET /contacts/0147344454
-		r.Post("/", addContact)                   // POST /contacts
-		r.Put("/{phonenumber}", updateContact)    // PUT /contacts/0147344454
+		r.Use(handlers.ValidateTokenMiddleware) // Protect all routes in this block with the middleware
+		r.Get("/", getAllContact)               // GET /contacts
+		r.Get("/{phonenumber}", getContact)     // GET /contacts/0147344454
+		r.Post("/", addContact)                 // POST /contacts
+		r.Put("/{phonenumber}", updateContact)  // PUT /contacts/0147344454
 		r.Delete("/{phonenumber}", deleteContact) // DELETE /contacts/0147344454
 	})
+
 	return r
 }
 
