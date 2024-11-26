@@ -6,6 +6,10 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"os"
+	"context"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/models"
 	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/storage"
 	"github.com/OnlyMD-321/GO-SIMPLE-API/internal/handlers"
@@ -20,21 +24,34 @@ var mh *storage.MongoHandler
 
 
 func main() {
-    mongoDbConnection := "mongodb://localhost:27017"
-    var err error
-    mh, err = storage.NewHandler(mongoDbConnection)  // Capture the error
-    if err != nil {
-        log.Fatalf("Failed to initialize MongoHandler: %v", err)  // Log the error if it's not nil
-    }
-    r := registerRoutes()
-    
-    // Add this line to confirm that the server is starting
-    fmt.Println("Server is running on http://localhost:3060")
-    
-    log.Fatal(http.ListenAndServe(":3060", r))
+	// Load MongoDB URI from environment variable
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		log.Fatal("MONGO_URI environment variable not set")
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Connect to MongoDB
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	}
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			log.Fatalf("Failed to disconnect from MongoDB: %v", err)
+		}
+	}()
+
+	// Ping the database to verify connection
+	if err = client.Ping(ctx, nil); err != nil {
+		log.Fatalf("Could not ping MongoDB: %v", err)
+	}
+
+	fmt.Println("Successfully connected to MongoDB!")
 }
-
-
 func registerRoutes() http.Handler {
 	r := chi.NewRouter()
 
